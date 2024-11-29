@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -16,6 +17,9 @@ var (
 	requests    int
 	concurrency int
 	method      string
+	body        string
+	headers     headerFlags
+	timeout     time.Duration
 )
 
 const (
@@ -26,11 +30,30 @@ const (
 	Blue   = "\033[34m"
 )
 
+type headerFlags map[string]string
+
+func (h *headerFlags) String() string {
+	return fmt.Sprintf("%v", *h)
+}
+
+func (h *headerFlags) Set(value string) error {
+	parts := strings.SplitN(value, ":", 2)
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid header format")
+	}
+	(*h)[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
+	return nil
+}
+
 func init() {
+	headers = make(headerFlags)
 	flag.StringVar(&url, "url", "", "URL of the service to be tested")
 	flag.IntVar(&requests, "requests", 0, "Total number of requests")
 	flag.IntVar(&concurrency, "concurrency", 1, "Number of concurrent requests")
-	flag.StringVar(&method, "method", "GET", "HTTP method to use for requests")
+	flag.StringVar(&method, "method", "GET", "HTTP method to use for requests (default: GET)")
+	flag.StringVar(&body, "body", "", "Body of the request")
+	flag.Var(&headers, "header", "HTTP headers to include in the request (can be used multiple times)")
+	flag.DurationVar(&timeout, "timeout", 30*time.Second, "Timeout for each request")
 }
 
 func main() {
@@ -74,15 +97,21 @@ func main() {
 
 func worker(id int, wg *sync.WaitGroup, requestsChan <-chan struct{}, resultsChan chan<- int, completedRequests *int32) {
 	defer wg.Done()
+	client := &http.Client{Timeout: timeout}
+
 	for range requestsChan {
-		req, err := http.NewRequest(method, url, nil)
+		req, err := http.NewRequest(method, url, strings.NewReader(body))
 		if err != nil {
 			log.Printf("%sWorker %d: Failed to create request: %v%s\n", Red, id, err, Reset)
 			resultsChan <- 0
 			continue
 		}
 
-		resp, err := http.DefaultClient.Do(req)
+		for key, value := range headers {
+			req.Header.Set(key, value)
+		}
+
+		resp, err := client.Do(req)
 		if err != nil {
 			log.Printf("%sWorker %d: Request failed: %v%s\n", Red, id, err, Reset)
 			resultsChan <- 0
@@ -92,7 +121,11 @@ func worker(id int, wg *sync.WaitGroup, requestsChan <-chan struct{}, resultsCha
 		resp.Body.Close()
 
 		current := atomic.AddInt32(completedRequests, 1)
-		log.Printf("%sWorker %d: Completed request %d/%d with status: %d%s\n", Green, id, current, requests, resp.StatusCode, Reset)
+		logColor := Green
+		if resp.StatusCode >= 400 {
+			logColor = Red
+		}
+		log.Printf("%sWorker %d: Completed request %d/%d with status: %d%s\n", logColor, id, current, requests, resp.StatusCode, Reset)
 	}
 }
 
@@ -114,12 +147,21 @@ func report(resultsChan <-chan int, totalTime time.Duration) {
 	errorRate := float64(totalRequests-status200) / float64(totalRequests) * 100
 	averageTimePerRequest := totalTime / time.Duration(totalRequests)
 
+	headersString := ""
+	for key, value := range headers {
+		headersString += fmt.Sprintf("    %s: %s\n", key, value)
+	}
+
 	reportContent := fmt.Sprintf(`
 Stress Test Report
 ================================================
 Execution Parameters:
   URL: %s
   HTTP Method: %s
+  Body: %s
+  Headers:
+%s
+  Timeout: %v
   Total number of requests desired: %d
   Concurrency level: %d
 ------------------------------------------------
@@ -130,9 +172,8 @@ Results:
   Success rate: %.2f%%
   Error rate: %.2f%%
   Average time per request: %v
-
   Distribution of other HTTP status codes:
-`, url, method, requests, concurrency, totalTime, totalRequests, status200, successRate, errorRate, averageTimePerRequest)
+`, url, method, body, headersString, timeout, requests, concurrency, totalTime, totalRequests, status200, successRate, errorRate, averageTimePerRequest)
 
 	for code, count := range statusCodes {
 		reportContent += fmt.Sprintf("    Status %d: %d\n", code, count)
