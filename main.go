@@ -45,22 +45,21 @@ func (h *headerFlags) Set(value string) error {
 	return nil
 }
 
-func init() {
-	headers = make(headerFlags)
-	flag.StringVar(&url, "url", "", "URL of the service to be tested")
-	flag.IntVar(&requests, "requests", 0, "Total number of requests")
-	flag.IntVar(&concurrency, "concurrency", 1, "Number of concurrent requests")
-	flag.StringVar(&method, "method", "GET", "HTTP method to use for requests")
-	flag.StringVar(&body, "body", "", "Body of the request")
-	flag.Var(&headers, "header", "HTTP headers to include in the request (can be used multiple times)")
-	flag.DurationVar(&timeout, "timeout", 30*time.Second, "Timeout for each request")
-}
-
 func main() {
-	flag.Parse()
+	headers = make(headerFlags)
+	fs := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+	fs.StringVar(&url, "url", "", "URL of the service to be tested")
+	fs.IntVar(&requests, "requests", 0, "Total number of requests")
+	fs.IntVar(&concurrency, "concurrency", 1, "Number of concurrent requests")
+	fs.StringVar(&method, "method", "GET", "HTTP method to use for requests")
+	fs.StringVar(&body, "body", "", "Body of the request")
+	fs.Var(&headers, "header", "HTTP headers to include in the request (can be used multiple times)")
+	fs.DurationVar(&timeout, "timeout", 30*time.Second, "Timeout for each request")
+
+	fs.Parse(os.Args[1:])
 
 	if url == "" || requests <= 0 || concurrency <= 0 {
-		flag.Usage()
+		fs.Usage()
 		return
 	}
 
