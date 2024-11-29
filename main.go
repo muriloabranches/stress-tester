@@ -50,7 +50,7 @@ func init() {
 	flag.StringVar(&url, "url", "", "URL of the service to be tested")
 	flag.IntVar(&requests, "requests", 0, "Total number of requests")
 	flag.IntVar(&concurrency, "concurrency", 1, "Number of concurrent requests")
-	flag.StringVar(&method, "method", "GET", "HTTP method to use for requests (default: GET)")
+	flag.StringVar(&method, "method", "GET", "HTTP method to use for requests")
 	flag.StringVar(&body, "body", "", "Body of the request")
 	flag.Var(&headers, "header", "HTTP headers to include in the request (can be used multiple times)")
 	flag.DurationVar(&timeout, "timeout", 30*time.Second, "Timeout for each request")
@@ -69,6 +69,15 @@ func main() {
 	log.Printf("%s  Total number of requests: %d%s\n", Blue, requests, Reset)
 	log.Printf("%s  Concurrency level: %d%s\n", Blue, concurrency, Reset)
 	log.Printf("%s  HTTP Method: %s%s\n", Blue, method, Reset)
+	log.Printf("%s  Body: %s%s\n", Blue, body, Reset)
+	log.Printf("%s  Timeout: %v%s\n", Blue, timeout, Reset)
+
+	if len(headers) > 0 {
+		log.Printf("%s  Headers:%s\n", Blue, Reset)
+		for key, value := range headers {
+			log.Printf("%s    %s: %s%s\n", Blue, key, value, Reset)
+		}
+	}
 
 	var wg sync.WaitGroup
 	requestsChan := make(chan struct{}, requests)
@@ -176,7 +185,11 @@ Results:
 `, url, method, body, headersString, timeout, requests, concurrency, totalTime, totalRequests, status200, successRate, errorRate, averageTimePerRequest)
 
 	for code, count := range statusCodes {
-		reportContent += fmt.Sprintf("    Status %d: %d\n", code, count)
+		if code == 0 {
+			reportContent += fmt.Sprintf("    Status timeout: %d\n", count)
+		} else {
+			reportContent += fmt.Sprintf("    Status %d: %d\n", code, count)
+		}
 	}
 	reportContent += "================================================\n"
 
