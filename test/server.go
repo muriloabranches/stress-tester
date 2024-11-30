@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
 	"time"
 )
@@ -46,6 +47,14 @@ func main() {
 		time.Sleep(5 * time.Second)
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintln(w, "Slow response")
+	})
+
+	http.HandleFunc("/random", func(w http.ResponseWriter, r *http.Request) {
+		log.Println("Endpoint /random accessed")
+		statuses := []int{http.StatusOK, http.StatusInternalServerError, http.StatusBadRequest, http.StatusNotFound, http.StatusCreated}
+		status := statuses[rand.Intn(len(statuses))]
+		w.WriteHeader(status)
+		fmt.Fprintf(w, "Random status: %d", status)
 	})
 
 	log.Println("Starting test server on :8080")

@@ -87,6 +87,12 @@ Um servidor de teste já está disponível na pasta `/test`. Para utilizá-lo, s
      ```sh
      docker run --rm stress-tester -url http://host.docker.internal:8080/with-header -requests 10 -concurrency 2 -method GET -header "X-Test-Header: test" -timeout 30s
      ```
+  
+   - **Endpoint `/random`:**
+
+     ```sh
+     docker run --rm stress-tester -url http://host.docker.internal:8080/random -requests 10 -concurrency 2 -method GET -timeout 30s
+     ```
 
 ### Exemplo de Relatório Gerado
 
