@@ -161,7 +161,7 @@ func report(resultsChan <-chan int, totalTime time.Duration) {
 	}
 
 	reportContent := fmt.Sprintf(`
-Stress Test Report
+Stress-Tester Report
 ================================================
 Execution Parameters:
   URL: %s
